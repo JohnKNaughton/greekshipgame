@@ -1,0 +1,20 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #0b1e33;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#game {
+  /* Sized by JS to an integer multiple of 480x270 */
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #0b1e33;
+}
