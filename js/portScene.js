@@ -162,9 +162,13 @@ class PortScene {
     } else if (kind === "barracks") {
       add(new Button(240, 148, 122, 18, "HIRE FOR 25C", 1), () => Game.hireMerc());
     } else if (kind === "dock") {
-      // Hull repairs up top, then invisible hit-areas over the grid's cells.
-      add(new Button(282, 56, 34, 14, "+1", 1), () => Game.repairHull(1));
-      add(new Button(322, 56, 40, 14, "+5", 1), () => Game.repairHull(5));
+      // The full refit, one click, price on the label — then piecemeal
+      // repairs, then invisible hit-areas over the grid's cells.
+      add(new Button(98, 58, 118, 13,
+        () => "FIX+FILL ALL " + Game.replenishCost() + "C", 1),
+        () => Game.replenishAll());
+      add(new Button(282, 59, 34, 12, "+1", 1), () => Game.repairHull(1));
+      add(new Button(322, 59, 40, 12, "+5", 1), () => Game.repairHull(5));
       const g = this.gridGeom();
       const rowY = (i) => g.gy + g.headerH + i * g.rowH;
       const cellX = (c) => g.gx + g.labelW + 4 + c * g.colW;
@@ -181,18 +185,19 @@ class PortScene {
       hidden(new Button(cellX(1), rowY(1), g.colW - 3, g.rowH - 4, ""), () => Game.buyShipUpgrade("sails"));
       hidden(new Button(cellX(2), rowY(1), g.colW - 3, g.rowH - 4, ""), () => Game.buyShipUpgrade("archers"));
       hidden(new Button(cellX(3), rowY(1), g.colW - 3, g.rowH - 4, ""), () => Game.buyShipUpgrade("quarters"));
-      // Module fillers for open slots.
-      add(new Button(102, 212, 130, 16, () => "FIT BALLISTA " + MODULES.ballista.cost + "C", 1),
+      // Module fillers for open slots, in their own bench below the grid.
+      add(new Button(160, 210, 106, 16, () => "BALLISTA " + MODULES.ballista.cost + "C", 1),
         () => Game.buyModule("ballista"));
-      add(new Button(240, 212, 130, 16, () => "FIT CATAPULT " + MODULES.catapult.cost + "C", 1),
+      add(new Button(274, 210, 106, 16, () => "CATAPULT " + MODULES.catapult.cost + "C", 1),
         () => Game.buyModule("catapult"));
     }
   }
 
-  // Geometry of the hull-by-category upgrade grid.
+  // Geometry of the hull-by-category upgrade grid. It sits a clear breath
+  // below the dock's repair row, with the modules bench pinned beneath it.
   gridGeom() {
     const r = this.panelRect();
-    return { gx: r.x + 8, gy: r.y + 32, labelW: 58, colW: 45, rowH: 32, headerH: 10 };
+    return { gx: r.x + 8, gy: r.y + 40, labelW: 58, colW: 45, rowH: 28, headerH: 10 };
   }
 
   panelRect() {
@@ -714,9 +719,16 @@ class PortScene {
 
   drawDockPanel(ctx, r) {
     drawText(ctx, "COPPER " + Game.resources.coins, r.x + 12, r.y + 10, 1, PAL.inkSoft);
-    drawText(ctx, "HULL " + Game.hull + "/" + Game.hullMax + " - MEND 2C EACH",
-      r.x + 14, r.y + 19, 1, Game.hull < Game.hullMax ? PAL.red : PAL.ink);
+    drawText(ctx, "MEND 2C", r.x + 158, r.y + 21, 1,
+      Game.hull < Game.hullMax ? PAL.red : PAL.ink);
     this.drawUpgradeGrid(ctx);
+    // The modules bench, its own little section under the hull matrix.
+    ctx.fillStyle = PAL.parchDark;
+    ctx.fillRect(r.x + 10, r.y + 164, r.w - 20, 2);
+    drawText(ctx, "MODULES:", r.x + 12, r.y + 174, 1, PAL.inkSoft);
+    // Filled / total slots — 0/0 on a skiff, 0/1 once a hull opens a spot...
+    drawText(ctx, Game.modules.length + " / " + Game.slots, r.x + 16, r.y + 186, 1,
+      Game.freeSlots > 0 ? PAL.gold : PAL.inkSoft);
   }
 
   // One row per hull class, one column per category; green cells are
@@ -824,9 +836,9 @@ class PortScene {
       drawTextC(ctx, "THE BENCHES ARE EMPTY TONIGHT.", r.x + r.w / 2, r.y + 72, 1, PAL.ink);
     }
     // The strong backs drinking in the corner
-    drawPawnTop(ctx, r.x + 72, r.y + 142, 0, { tunic: PAL.sandShade });
-    drawText(ctx, "ROWERS PULL THE OARS AND ASK NO NAME.", r.x + 82, r.y + 132, 1, PAL.ink);
-    drawText(ctx, "X" + Game.rowers + " ABOARD NOW.", r.x + 82, r.y + 144, 1, PAL.inkSoft);
+    drawPawnTop(ctx, r.x + 30, r.y + 144, 0, { tunic: PAL.sandShade });
+    drawText(ctx, "ROWERS, NO NAMES ASKED.", r.x + 42, r.y + 132, 1, PAL.ink);
+    drawText(ctx, "X" + Game.rowers + " ABOARD NOW.", r.x + 42, r.y + 144, 1, PAL.inkSoft);
     drawTextC(ctx, "QUESTS ARRIVE WITH A LATER PAGE.", r.x + r.w / 2, r.y + 162, 1, PAL.sailStripe);
     drawText(ctx, "COPPER " + Game.resources.coins + "   BUNKS " + Game.bunksUsed + "/" + Game.crewCap,
       r.x + 14, r.y + r.h - 16, 1, PAL.inkSoft);

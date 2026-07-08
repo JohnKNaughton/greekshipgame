@@ -167,6 +167,14 @@ function drawResourceBar(ctx, t) {
   const yx = VIRTUAL_W - textWidth(yearStr, 1) - 5;
   drawText(ctx, yearStr, yx, 6, 1, PAL.parchment);
   const wx = yx - textWidth(Game.weather, 1) - 16;
+
+  // Dodge, right of the cargo counters: the manned-stations formula, live.
+  const dodgeStr = "DODGE: " + currentDodge() + "%";
+  const ddx = Math.min(x + 6, wx - textWidth(dodgeStr, 1) - 8);
+  drawText(ctx, dodgeStr, ddx, 6, 1, PAL.seaFoam);
+  if (Input.my < RES_BAR_H && Input.mx >= ddx && Input.mx < wx - 2) {
+    tip = "10% PER MANNED LEVEL OF HELM, SAILS, AND OARS";
+  }
   ctx.fillStyle = PAL.sun;
   ctx.fillRect(wx + 1, 5, 5, 5);
   ctx.fillRect(wx, 6, 7, 3);

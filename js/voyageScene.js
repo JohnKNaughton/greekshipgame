@@ -24,7 +24,11 @@ class VoyageScene {
     this.drift = 0;
 
     this.mapBtn = new Button(392, 234, 80, 28, "MAP", 2);
-    this.skipBtn = new Button(8, 238, 76, 24, "SAIL ON", 1);
+    // Time is the captain's to command: pause, sail, or borrow the god's sandals.
+    this.speed = 1;
+    this.pauseBtn = new Button(8, 240, 20, 18, "II", 1);
+    this.playBtn = new Button(30, 240, 20, 18, ">", 1);
+    this.hermesBtn = new Button(52, 240, 74, 18, "HERMES MODE", 1);
     buildDeck();
     // Center the deck whatever her hull length is.
     this.dx = Math.round((VIRTUAL_W - DECK.W) / 2);
@@ -69,6 +73,13 @@ class VoyageScene {
   }
 
   update(dt, t) {
+    if (this.pauseBtn.clicked() || Input.pressed("Space")) {
+      this.speed = this.speed === 0 ? 1 : 0;
+    }
+    if (this.playBtn.clicked()) this.speed = 1;
+    if (this.hermesBtn.clicked()) this.speed = 5;
+    dt *= this.speed;
+
     if (this.noticeTimer > 0) {
       this.noticeTimer -= dt;
       if (this.noticeTimer <= 0) this.notice = null;
@@ -82,10 +93,6 @@ class VoyageScene {
       return;
     }
     const helmed = !!CrewUI.manned("helm");
-    if (this.skipBtn.clicked()) {
-      if (helmed) this.legTime = LEG_DURATION;
-      else this.say("NO HAND AT THE HELM.");
-    }
 
     // Fish break the surface out on the open water.
     this.splashTimer -= dt;
@@ -186,7 +193,9 @@ class VoyageScene {
     ctx.fillStyle = PAL.gold;
     ctx.fillRect(Math.round(rx + this.progress * rw) - 1, ry - 4, 3, 3);
 
-    if (!this.pending && !CrewUI.manned("helm")) {
+    if (this.speed === 0) {
+      drawTextC(ctx, "PAUSED", VIRTUAL_W / 2, 66, 1, PAL.parchment);
+    } else if (!this.pending && !CrewUI.manned("helm")) {
       if (Math.sin(t * 3) > -0.5) {
         drawTextC(ctx, "NO HAND AT THE HELM - THE SHIP DRIFTS", VIRTUAL_W / 2, 66, 1, PAL.red);
       }
@@ -201,7 +210,9 @@ class VoyageScene {
     const info = CrewUI.hoverInfo();
     if (info) drawTooltip(ctx, info, Input.mx, Input.my - 14);
 
-    this.skipBtn.draw(ctx);
+    this.pauseBtn.draw(ctx, { forceHot: this.speed === 0 });
+    this.playBtn.draw(ctx, { forceHot: this.speed === 1 });
+    this.hermesBtn.draw(ctx, { forceHot: this.speed === 5 });
     this.mapBtn.draw(ctx, { icon: drawScrollButtonIcon });
     CrewUI.drawRoster(ctx, t);
     CrewUI.drawStationPanel(ctx, t);

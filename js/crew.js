@@ -52,13 +52,35 @@ function standPoint(st, slot) {
 
 // What each post does, for tooltips everywhere.
 function stationDesc(st) {
-  if (st.bench) return "ROWERS SPEED THE CROSSING AND AID DODGE";
-  if (st.id === "helm") return "ENABLES MOVEMENT, GIVES DODGE WHEN MANNED";
-  if (st.id === "mast") return "TRIMS SAIL FOR FASTER TRAVEL BETWEEN EVENTS";
+  if (st.bench) return "SPEEDS THE CROSSING, +10% DODGE PER MANNED OAR ROW";
+  if (st.id === "helm") return "ENABLES MOVEMENT, +10% DODGE WHEN MANNED";
+  if (st.id === "mast") return "FASTER TRAVEL, +10% DODGE PER SAIL LEVEL WHEN MANNED";
   if (st.id === "archers") return "UNITS SHOOT ENEMIES WITH VOLLEYS OF ARROWS";
   if (st.module && MODULE_WEAPONS[st.module]) return MODULES[st.module].desc + ", GUNNER SPEEDS RELOAD";
   if (st.module) return MODULES[st.module].desc + " WHILE FITTED";
   return "THE GODS APPRECIATE COMPANY";
+}
+
+// Ship dodge: 10% per level of each manned Helm, Sails, and Oars. A manned
+// helm is one level; a manned SAILS station counts the sail level; each oar
+// row counts when both of its benches are pulled. Shown live on the top bar
+// and rolled against every incoming projectile in combat.
+function currentDodge() {
+  buildDeck();
+  const standing = (st) => {
+    const p = standPoint(st);
+    return CrewUI.allPawns().some((pw) =>
+      pw.hp > 0 && Math.abs(pw.x - p.x) < 5 && Math.abs(pw.y - p.y) < 5);
+  };
+  let d = 0;
+  if (CrewUI.manned("helm")) d += 10;
+  if (CrewUI.manned("mast")) d += 10 * Game.upgrades.sails;
+  for (let i = 0; i < Game.oarsLevel; i++) {
+    const top = CrewUI.stationById("benchT" + i);
+    const bottom = CrewUI.stationById("benchB" + i);
+    if (top && bottom && standing(top) && standing(bottom)) d += 10;
+  }
+  return d;
 }
 
 const CrewUI = {

@@ -34,7 +34,7 @@ class CombatScene {
       }
     });
 
-    this.paused = false;
+    this.speed = 1; // 0 paused, 1 sailing time, 5 with Hermes' sandals on
     this.over = null;
     this.projectiles = [];
     this.floaters = [];
@@ -43,7 +43,9 @@ class CombatScene {
     this.boardTimer = enemy.boarders > 0 ? (enemy.boss ? 8 : 10 + Math.random() * 6) : -1;
     this.surrenderTimer = 1;
 
-    this.pauseBtn = new Button(446, 20, 28, 16, () => (this.paused ? ">" : "II"), 1);
+    this.pauseBtn = new Button(180, 20, 20, 16, "II", 1);
+    this.playBtn = new Button(202, 20, 20, 16, ">", 1);
+    this.hermesBtn = new Button(224, 20, 76, 16, "HERMES MODE", 1);
     this.contBtn = new Button(190, 168, 100, 20, "CONTINUE", 1);
     buildDeck();
     this.dy = Math.round(164 - DECK.H / 2);
@@ -55,20 +57,33 @@ class CombatScene {
     this.floaters.push({ x, y, txt, color, life: 1.2 });
   }
 
+  // Your dodge is the manned-stations formula; every foe holds a flat 10%.
   get dodge() {
-    let d = 0;
-    const helm = CrewUI.manned("helm");
-    if (helm) d += 0.1 + skillOf(helm, "sailing") * 0.02;
-    d += Math.min(0.06, CrewUI.benchesManned() * 0.015);
-    if (Game.modules.includes("poseidon")) d += 0.1;
-    return d;
+    return currentDodge() / 100;
+  }
+
+  get enemyDodge() {
+    return 0.10;
   }
 
   finish(won, lines) {
     this.over = { won, lines };
   }
 
+  get paused() {
+    return this.speed === 0;
+  }
+
   update(dt, t) {
+    if (!this.over) {
+      if (this.pauseBtn.clicked() || Input.pressed("Space")) {
+        this.speed = this.speed === 0 ? 1 : 0;
+      }
+      if (this.playBtn.clicked()) this.speed = 1;
+      if (this.hermesBtn.clicked()) this.speed = 5;
+    }
+    dt *= this.speed;
+
     for (const f of this.floaters) { f.y -= 10 * dt; f.life -= dt; }
     this.floaters = this.floaters.filter((f) => f.life > 0);
     for (const im of this.impacts) im.life -= dt;
@@ -89,12 +104,8 @@ class CombatScene {
       return;
     }
 
-    if (this.pauseBtn.clicked() || Input.pressed("Space")) {
-      this.paused = !this.paused;
-    }
-
     // Orders flow even while time stands still — that's what pausing is for.
-    CrewUI.update(this.paused ? 0 : dt, { threats: this.boarders, training: !this.paused });
+    CrewUI.update(dt, { threats: this.boarders, training: !this.paused });
     if (CrewUI.handleClick(CBT_DECK_X, this.dy, this.boarders)) return;
 
     if (this.paused) return;
@@ -145,7 +156,7 @@ class CombatScene {
     for (const p of this.projectiles) p.f += dt / 0.8;
     for (const p of this.projectiles.filter((p) => p.f >= 1)) {
       if (p.target === "enemy") {
-        if (Math.random() < this.enemy.dodge) {
+        if (Math.random() < this.enemyDodge) {
           this.float(p.tx, p.ty - 8, "MISS", PAL.seaFoam);
         } else {
           this.enemyHp -= p.dmg;
@@ -333,7 +344,6 @@ class CombatScene {
       ctx.fillStyle = PAL.gold;
       ctx.fillRect(78, y, Math.round(42 * (1 - w.timer / w.cd)), 5);
     }
-    drawText(ctx, "DODGE " + Math.round(this.dodge * 100) + "%", 8, wy - 12, 1, PAL.seaFoam);
 
     for (const f of this.floaters) {
       drawTextC(ctx, f.txt, f.x, Math.round(f.y), 1, f.color);
@@ -346,7 +356,9 @@ class CombatScene {
     const info = CrewUI.hoverInfo();
     if (info) drawTooltip(ctx, info, Input.mx, Input.my - 14);
 
-    this.pauseBtn.draw(ctx);
+    this.pauseBtn.draw(ctx, { forceHot: this.speed === 0 });
+    this.playBtn.draw(ctx, { forceHot: this.speed === 1 });
+    this.hermesBtn.draw(ctx, { forceHot: this.speed === 5 });
     if (this.paused && !this.over) {
       drawTextC(ctx, "PAUSED - GIVE YOUR ORDERS", VIRTUAL_W / 2, 118, 2, PAL.parchment);
     }

@@ -18,6 +18,10 @@ const PRICE_BIAS = {
   gadir:   { silver: 0.5 },    // iberian mines
   thonis:  { gold: 0.55 },     // gold of the pharaohs
   chalcis: { pottery: 0.6 },   // euboean kilns
+  athens:  { pottery: 0.55 },  // attic ware
+  pella:   { lumber: 0.6 },    // macedonian timber
+  colchis: { gold: 0.6 },      // the golden fleece country
+  saguntum: { silver: 0.6 },   // more iberian veins
 };
 
 // --- Ship hulls and upgrades: a simple visible tree. A bigger hull makes
@@ -111,7 +115,8 @@ const Game = {
   provisionsMax: 20,
   upgrades: {},
   modules: [],
-  prices: {},      // cityId -> goodId -> copper price (fixed for the run)
+  prices: {},      // cityId -> goodId -> current price (float, dynamic)
+  anchors: {},     // cityId -> goodId -> the price that market drifts toward
   routeEvents: {}, // edge id -> array of hub events
   crew: [],        // named members (walkable, FTL-style)
   rowers: 0,       // stock crew: identical oarsmen
@@ -184,18 +189,46 @@ const Game = {
     return !!CITIES[id].ruined || (this.ruinedPorts && this.ruinedPorts.has(id));
   },
 
-  // Each city's market prices are rolled once per run: buy where the fates
-  // (and famous local industries) are kind, sell where they are not.
+  // Markets are living things (AoE2-style): each city's prices start near a
+  // rolled anchor, your own trading pushes them, and every year at sea they
+  // drift — pulled slowly home to their anchor, shoved randomly by the wider
+  // Aegean economy. Anchors keep the famous producers famously cheap.
   generatePrices() {
-    this.prices = {};
+    this.prices = {};  // cityId -> goodId -> current price (float; rounded on display)
+    this.anchors = {}; // cityId -> goodId -> where that market "wants" to sit
     for (const cityId in CITIES) {
       const bias = PRICE_BIAS[cityId] || {};
-      const table = {};
+      const table = {}, anchors = {};
       for (const g of GOOD_IDS) {
         const mult = bias[g] || 0.65 + Math.random() * 0.85;
-        table[g] = Math.max(2, Math.round(GOODS[g].base * mult));
+        anchors[g] = GOODS[g].base * mult;
+        table[g] = anchors[g];
       }
       this.prices[cityId] = table;
+      this.anchors[cityId] = anchors;
+    }
+  },
+
+  clampPrice(g, p) {
+    return Math.min(GOODS[g].base * 2.5, Math.max(GOODS[g].base * 0.4, p));
+  },
+
+  // Every unit you trade moves the local price: buying makes it dearer,
+  // selling floods the stalls and softens it.
+  bumpPrice(g, dir) {
+    const table = this.prices[this.currentPort];
+    table[g] = this.clampPrice(g, table[g] * (1 + dir * 0.05) + dir * 0.4);
+  },
+
+  // A year passes with every crossing; every market in the world breathes.
+  driftPrices() {
+    for (const cityId in CITIES) {
+      for (const g of GOOD_IDS) {
+        let p = this.prices[cityId][g];
+        p += (this.anchors[cityId][g] - p) * 0.10;   // slow pull toward home
+        p *= 1 + (Math.random() * 2 - 1) * 0.10;     // the unpredictable sea
+        this.prices[cityId][g] = this.clampPrice(g, p);
+      }
     }
   },
 
@@ -218,6 +251,7 @@ const Game = {
     if (this.cargoUsed >= this.cargoCap) return "THE CARGO HOLD IS FULL.";
     this.resources.coins -= price;
     this.resources[goodId]++;
+    this.bumpPrice(goodId, +1);
     return null;
   },
 
@@ -225,6 +259,7 @@ const Game = {
     if (this.resources[goodId] < 1) return "YOU CARRY NONE.";
     this.resources[goodId]--;
     this.resources.coins += this.priceOf(this.currentPort, goodId);
+    this.bumpPrice(goodId, -1);
     return null;
   },
 
@@ -312,6 +347,24 @@ const Game = {
     return null;
   },
 
+  // One-click refit at the dock: mend every plank, fill water and larder.
+  replenishCost() {
+    return (this.hullMax - this.hull) * 2 +
+      (this.waterMax - this.resources.water) +
+      (this.provisionsMax - this.resources.provisions) * 2;
+  },
+
+  replenishAll() {
+    const cost = this.replenishCost();
+    if (cost <= 0) return "SHE WANTS FOR NOTHING.";
+    if (this.resources.coins < cost) return "NOT ENOUGH COPPER - " + cost + "C TO REFIT HER FULLY.";
+    this.resources.coins -= cost;
+    this.hull = this.hullMax;
+    this.resources.water = this.waterMax;
+    this.resources.provisions = this.provisionsMax;
+    return null;
+  },
+
   repairHull(n) {
     if (this.hull >= this.hullMax) return "HER PLANKS ARE SOUND.";
     const count = Math.min(n, this.hullMax - this.hull, Math.floor(this.resources.coins / 2));
@@ -383,6 +436,7 @@ const Game = {
     for (const c of this.crew) c.hp = c.hpMax; // shore leave heals all wounds
     this.scavenged = false;
     this.begged = false;
+    this.driftPrices();
     this.villainMarch();
     this.recruit = this.isRuined(cityId) ? null : randomCrewName();
     this.regenerateEvents();
